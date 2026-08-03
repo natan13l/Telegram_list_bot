@@ -5,10 +5,6 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 import os
-import pytz
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-import asyncio
 
 # ========== НАСТРОЙКИ ==========
 logging.basicConfig(level=logging.INFO)
@@ -96,6 +92,11 @@ class Database:
     def toggle_item(self, item_id):
         self.cursor.execute('UPDATE items SET is_checked = NOT is_checked WHERE id = ?', (item_id,))
         self.conn.commit()
+    
+    def get_category_by_item(self, item_id):
+        self.cursor.execute('SELECT category_id FROM items WHERE id = ?', (item_id,))
+        res = self.cursor.fetchone()
+        return res[0] if res else None
     
     def delete_item(self, item_id):
         self.cursor.execute('DELETE FROM items WHERE id = ?', (item_id,))
@@ -197,10 +198,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("toggle_"):
         item_id = int(data.split('_')[1])
         db.toggle_item(item_id)
-        self.cursor = db.conn.cursor()
-        self.cursor.execute('SELECT category_id FROM items WHERE id = ?', (item_id,))
-        cat_id = self.cursor.fetchone()[0]
-        await query.message.edit_reply_markup(reply_markup=items_keyboard(cat_id, user_id))
+        cat_id = db.get_category_by_item(item_id)
+        if cat_id:
+            await query.message.edit_reply_markup(reply_markup=items_keyboard(cat_id, user_id))
         return
     
     if data.startswith("clear_"):
